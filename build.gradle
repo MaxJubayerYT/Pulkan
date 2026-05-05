@@ -1,0 +1,191 @@
+plugins {
+    id 'fabric-loom' version '1.9-SNAPSHOT'
+    id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+def lwjglVersion = '3.3.4'
+def lwjglNatives = [
+        'natives-linux-arm64',
+        'natives-linux-arm32',
+        'natives-linux',
+        'natives-linux-x86'
+]
+def lwjglModules = [
+        'lwjgl',
+        'lwjgl-vulkan',
+        'lwjgl-shaderc',
+        'lwjgl-vma',
+        'lwjgl-opengl',
+        'lwjgl-stb',
+        'lwjgl-glfw',
+        'lwjgl-tinyfd'
+]
+
+def nativeArchMap = [
+        'natives-linux-arm64': 'arm64',
+        'natives-linux-arm32': 'arm32',
+        'natives-linux'      : 'x86_64',
+        'natives-linux-x86'  : 'x86'
+]
+
+def nestedJarOutDir = layout.projectDirectory.dir('src/main/resources/META-INF/jars')
+def nativeExtractOutDir = layout.projectDirectory.dir('src/main/resources/linux')
+def androidNativesCacheDir = layout.buildDirectory.dir('android-natives')
+
+configurations {
+    lwjglApiJars
+    lwjglNativeJars
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    // VulkanMod is auto-downloaded from Modrinth by the downloadVulkanMod task
+    modCompileOnly fileTree(dir: 'build/vulkanmod', include: '*.jar')
+
+    lwjglModules.each { module ->
+        modImplementation "org.lwjgl:${module}:${lwjglVersion}"
+        lwjglApiJars "org.lwjgl:${module}:${lwjglVersion}"
+        lwjglNatives.each { classifier ->
+            if (module != 'lwjgl-vulkan') {
+                runtimeOnly "org.lwjgl:${module}:${lwjglVersion}:${classifier}"
+                lwjglNativeJars "org.lwjgl:${module}:${lwjglVersion}:${classifier}"
+            }
+        }
+    }
+}
+
+// ── Auto-download VulkanMod from GitHub Releases ──────────────────────────
+tasks.register('downloadVulkanMod') {
+    description = 'Downloads the latest VulkanMod jar from GitHub Releases (xCollateral/VulkanMod).'
+    def outDir = layout.buildDirectory.dir('vulkanmod')
+    outputs.dir outDir
+
+    doLast {
+        def vulkanDir = outDir.get().asFile
+        vulkanDir.mkdirs()
+
+        // Skip if we already have a jar cached
+        if (vulkanDir.listFiles()?.any { it.name.endsWith('.jar') }) {
+            logger.lifecycle("[Pulkan] VulkanMod jar already cached in build/vulkanmod — skipping download.")
+            return
+        }
+
+        // GitHub REST API — no auth needed for public repos, 60 req/hour unauthenticated
+        def apiUrl = 'https://api.github.com/repos/xCollateral/VulkanMod/releases/latest'
+        logger.lifecycle("[Pulkan] Querying GitHub for latest VulkanMod release...")
+
+        def json = new URL(apiUrl).getText(
+            connectTimeout: 10000,
+            readTimeout:    30000,
+            requestProperties: [
+                'User-Agent': 'Pulkan-build/1.0',
+                'Accept':     'application/vnd.github+json'
+            ]
+        )
+
+        // Extract tag name for logging
+        def tagMatch = (json =~ /"tag_name"\s*:\s*"([^"]+)"/)
+        def tag = tagMatch ? tagMatch[0][1] : 'unknown'
+        logger.lifecycle("[Pulkan] Latest VulkanMod release: ${tag}")
+
+        // Find the .jar asset download URL (the release jar, not sources)
+        def urlMatch = (json =~ /"browser_download_url"\s*:\s*"([^"]+\.jar)"/)
+        if (!urlMatch) throw new GradleException(
+            "[Pulkan] No .jar asset found in VulkanMod release ${tag}. " +
+            "Check https://github.com/xCollateral/VulkanMod/releases manually.")
+
+        def jarUrl  = urlMatch[0][1]
+        def jarName = jarUrl.tokenize('/').last()
+        def outFile = new File(vulkanDir, jarName)
+
+        logger.lifecycle("[Pulkan] Downloading: ${jarName}")
+        new URL(jarUrl).withInputStream { is -> outFile.bytes = is.bytes }
+        logger.lifecycle("[Pulkan] Saved to build/vulkanmod/${jarName}")
+    }
+}
+
+// Make compileJava depend on the download so it's always available
+compileJava.dependsOn tasks.named('downloadVulkanMod')
+
+
+    description = 'Resolves LWJGL native jars for arm64/arm32/x86/x86_64 into build/android-natives.'
+    from configurations.lwjglNativeJars
+    into androidNativesCacheDir
+}
+
+tasks.register('extractNativeSos') {
+    description = 'Extracts .so files from LWJGL natives into src/main/resources/linux/{arch}/org/lwjgl/{module}.'
+    dependsOn tasks.named('downloadAndroidNatives')
+    outputs.dir nativeExtractOutDir
+
+    doLast {
+        nativeExtractOutDir.asFile.mkdirs()
+
+        configurations.lwjglNativeJars.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+            String classifier = artifact.classifier
+            String arch = nativeArchMap[classifier]
+            if (arch == null) return
+
+            String moduleName = artifact.name == 'lwjgl' ? '' : artifact.name.replaceFirst('^lwjgl-', '')
+            String modulePath = moduleName.isEmpty() ? '' : "/${moduleName}"
+
+            copy {
+                from zipTree(artifact.file)
+                include '**/*.so'
+                eachFile { f ->
+                    f.path = "${arch}/org/lwjgl${modulePath}/${f.name}"
+                }
+                includeEmptyDirs = false
+                into nativeExtractOutDir
+            }
+        }
+    }
+}
+
+tasks.register('bundleNestedJars', Copy) {
+    description = 'Copies non-native LWJGL API jars into src/main/resources/META-INF/jars.'
+    from configurations.lwjglApiJars
+    into nestedJarOutDir
+}
+
+tasks.register('bundleAndroidLibs', Copy) {
+    description = 'Copies resolved LWJGL native jars into src/main/resources/META-INF/jars.'
+    from configurations.lwjglNativeJars
+    into nestedJarOutDir
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') {
+        expand version: project.version
+    }
+
+    dependsOn tasks.named('downloadAndroidNatives')
+    dependsOn tasks.named('extractNativeSos')
+    dependsOn tasks.named('bundleNestedJars')
+    dependsOn tasks.named('bundleAndroidLibs')
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+}

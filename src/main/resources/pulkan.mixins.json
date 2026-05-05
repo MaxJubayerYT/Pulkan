@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "net.pulkan.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [],
+  "client": [
+    "QueueFamilyMixin",
+    "SwapChainCreationMixin",
+    "SwapChainPreRotationMixin",
+    "RendererFrameMixin",
+    "RendererSubOptimalMixin",
+    "DrawBuffersMixin",
+    "FramebufferSizeMixin",
+    "ProjectionPreRotationMixin",
+    "MemoryAllocatorMixin",
+    "PipelineLayoutMixin",
+    "VulkanDeviceFeaturesMixin",
+    "PhysicalDeviceSelectorMixin",
+    "SurfaceFormatMixin",
+    "PresentModeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  },
+  "refmap": "pulkan-refmap.json"
+}
