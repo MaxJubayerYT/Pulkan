@@ -54,8 +54,10 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // VulkanMod is NOT a compile dependency — it is declared in fabric.mod.json "depends"
-    // so Fabric Loader enforces the user has it installed at runtime. That's all we need.
+    // VulkanMod must be on the compile classpath so Mixin's annotation processor
+    // can validate @Mixin targets. modCompileOnly = compile only, NOT bundled in output jar.
+    // It is downloaded automatically below by the downloadVulkanMod task.
+    modCompileOnly fileTree(dir: layout.buildDirectory.dir('vulkanmod'), include: '*.jar')
 
     lwjglModules.each { module ->
         modImplementation "org.lwjgl:${module}:${lwjglVersion}"
@@ -66,6 +68,43 @@ dependencies {
                 lwjglNativeJars "org.lwjgl:${module}:${lwjglVersion}:${classifier}"
             }
         }
+    }
+}
+
+// ── Auto-download VulkanMod (compile-only, NOT bundled in output) ──────────
+tasks.register('downloadVulkanMod') {
+    description = 'Downloads VulkanMod from Modrinth for compile-time mixin validation only.'
+    def outDir = layout.buildDirectory.dir('vulkanmod')
+    outputs.dir outDir
+
+    doLast {
+        def vulkanDir = outDir.get().asFile
+        vulkanDir.mkdirs()
+
+        if (vulkanDir.listFiles()?.any { it.name.endsWith('.jar') }) {
+            logger.lifecycle('[Pulkan] VulkanMod compile jar already cached — skipping download.')
+            return
+        }
+
+        def apiUrl = 'https://api.modrinth.com/v2/project/vulkanmod/version'
+        logger.lifecycle('[Pulkan] Downloading VulkanMod from Modrinth (compile-only)...')
+
+        def json = new URL(apiUrl).getText(
+            connectTimeout: 10000,
+            readTimeout: 30000,
+            requestProperties: ['User-Agent': 'Pulkan-build/1.0 (github.com/MaxJubayerYT/Pulkan)']
+        )
+
+        def urlMatch = (json =~ /"url"\s*:\s*"(https:[^"]+\.jar)"/)
+        if (!urlMatch) throw new GradleException('[Pulkan] Could not find VulkanMod jar URL from Modrinth.')
+
+        def jarUrl  = urlMatch[0][1]
+        def jarName = URLDecoder.decode(jarUrl.tokenize('/').last(), 'UTF-8')
+        def outFile = new File(vulkanDir, jarName)
+
+        logger.lifecycle("[Pulkan] Downloading: ${jarName}")
+        new URL(jarUrl).withInputStream { is -> outFile.bytes = is.bytes }
+        logger.lifecycle("[Pulkan] VulkanMod compile jar ready.")
     }
 }
 
@@ -116,6 +155,7 @@ tasks.register('bundleAndroidLibs', Copy) {
 }
 
 // ── Hook everything into the build lifecycle ───────────────────────────────
+compileJava.dependsOn tasks.named('downloadVulkanMod')
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand version: project.version }
