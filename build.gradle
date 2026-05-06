@@ -82,7 +82,10 @@ dependencies {
     } else {
         logger.lifecycle("[Pulkan] Using cached VulkanMod: ${cachedJar.name}")
     }
-    if (cachedJar?.exists()) modCompileOnly files(cachedJar)
+    // compileOnly (not modCompileOnly) — we just need the classes visible to the compiler.
+    // modCompileOnly makes Loom process VulkanMod as a Fabric mod and try to remap its
+    // access widener, which fails. compileOnly skips all that and just puts classes on classpath.
+    if (cachedJar?.exists()) compileOnly files(cachedJar)
 
     lwjglModules.each { module ->
         modImplementation "org.lwjgl:${module}:${lwjglVersion}"
