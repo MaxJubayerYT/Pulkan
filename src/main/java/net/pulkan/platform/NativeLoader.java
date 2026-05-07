@@ -94,7 +94,6 @@ public final class NativeLoader {
         return switch (arch) {
             case "aarch64"                    -> "arm64";
             case "arm", "armv7l", "armv8l"   -> "arm32";
-            case "i686", "x86"               -> "x86";
             default                           -> "x86_64";
         };
     }

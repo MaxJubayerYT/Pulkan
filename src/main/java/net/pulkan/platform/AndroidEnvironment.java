@@ -44,8 +44,6 @@ public final class AndroidEnvironment {
 
     public static boolean isArm32() { return ARCH.equals("arm") || ARCH.startsWith("armv7"); }
 
-    public static boolean isX86() { return ARCH.equals("i686") || ARCH.equals("x86"); }
-
     public static boolean isX86_64() { return ARCH.equals("amd64") || ARCH.equals("x86_64"); }
 
     public static String getVulkanVersion() {

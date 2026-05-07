@@ -19,8 +19,7 @@ def lwjglVersion = '3.3.4'
 def lwjglNatives = [
         'natives-linux-arm64',
         'natives-linux-arm32',
-        'natives-linux',
-        'natives-linux-x86'
+        'natives-linux'       // x86_64
 ]
 def lwjglModules = [
         'lwjgl',
@@ -36,8 +35,7 @@ def lwjglModules = [
 def nativeArchMap = [
         'natives-linux-arm64': 'arm64',
         'natives-linux-arm32': 'arm32',
-        'natives-linux'      : 'x86_64',
-        'natives-linux-x86'  : 'x86'
+        'natives-linux'      : 'x86_64'
 ]
 
 def nestedJarOutDir     = layout.projectDirectory.dir('src/main/resources/META-INF/jars')
