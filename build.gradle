@@ -153,6 +153,19 @@ tasks.withType(Jar).configureEach {
     dependsOn tasks.named('bundleAndroidLibs')
 }
 
+// Disable remapJar — this mod uses remap=false on all mixins and references no
+// obfuscated Minecraft internals, so Tiny Remapper has nothing to do and chokes
+// on the binary .so files inside the jar.
+tasks.named('remapJar') {
+    enabled = false
+}
+
+// Make the plain jar the primary build artifact instead
+configurations.archives.artifacts.clear()
+artifacts {
+    archives tasks.named('jar')
+}
+
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand version: project.version }
