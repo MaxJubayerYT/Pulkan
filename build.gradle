@@ -145,6 +145,9 @@ tasks.register('bundleAndroidLibs', Copy) {
 }
 
 // ── Hook everything into the build lifecycle ───────────────────────────────
+tasks.withType(Jar).configureEach {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
 processResources {
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand version: project.version }
