@@ -34,9 +34,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Generate Gradle wrapper
-        run: gradle wrapper
-
       - name: Build
         run: ./gradlew build --no-daemon
 
