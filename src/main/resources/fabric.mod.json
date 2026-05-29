@@ -3,7 +3,7 @@
   "id": "pulkan",
   "version": "${version}",
   "name": "Pulkan",
-  "description": "Full Android support layer for VulkanMod \u2014 native libs, pre-rotation, queue fallback, memory tuning.",
+  "description": "Android compatibility layer for VulkanMod — native detection, pre-rotation, queue fallback, memory tuning.",
   "authors": [],
   "contact": {
     "sources": "https://github.com/YOUR_USERNAME/Pulkan"
@@ -24,76 +24,5 @@
     "vulkanmod": "*",
     "minecraft": "*",
     "java": ">=17"
-  },
-  "jars": [
-    {
-      "file": "META-INF/jars/lwjgl.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-vulkan.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-shaderc.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-shaderc-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-shaderc-natives-linux-arm32.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-shaderc-natives-linux.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-vma.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-vma-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-vma-natives-linux-arm32.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-vma-natives-linux.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-opengl.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-opengl-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-opengl-natives-linux-arm32.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-stb.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-stb-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-stb-natives-linux-arm32.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-stb-natives-linux.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-glfw.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-glfw-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-glfw-natives-linux-arm32.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-tinyfd.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-tinyfd-natives-linux-arm64.jar"
-    },
-    {
-      "file": "META-INF/jars/lwjgl-tinyfd-natives-linux-arm32.jar"
-    }
-  ]
+  }
 }

@@ -13,38 +13,7 @@ base {
 repositories {
     mavenCentral()
     maven { url = 'https://maven.fabricmc.net/' }
-}
-
-def lwjglVersion = '3.3.4'
-def lwjglNatives = [
-        'natives-linux-arm64',
-        'natives-linux-arm32',
-        'natives-linux'
-]
-def lwjglModules = [
-        'lwjgl',
-        'lwjgl-vulkan',
-        'lwjgl-shaderc',
-        'lwjgl-vma',
-        'lwjgl-opengl',
-        'lwjgl-stb',
-        'lwjgl-glfw',
-        'lwjgl-tinyfd'
-]
-def nativeArchMap = [
-        'natives-linux-arm64': 'arm64',
-        'natives-linux-arm32': 'arm32',
-        'natives-linux'      : 'x86_64'
-]
-
-// Write generated files to build/ NOT src/main/resources — keeps Loom's remapper happy
-def generatedResources = layout.buildDirectory.dir('generated-resources')
-def nestedJarOutDir    = generatedResources.map { it.dir('META-INF/jars') }
-def nativeExtractOutDir = generatedResources.map { it.dir('linux') }
-
-configurations {
-    lwjglApiJars
-    lwjglNativeJars
+    maven { url = 'https://api.modrinth.com/maven' }
 }
 
 dependencies {
@@ -52,128 +21,11 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // Download VulkanMod synchronously at configuration time so Mixin's annotation
-    // processor can resolve targets. compileOnly = not bundled, no Loom remapping.
-    def vulkanCacheDir = file("${buildDir}/vulkanmod")
-    vulkanCacheDir.mkdirs()
-    def cachedJar = vulkanCacheDir.listFiles()?.find { it.name.endsWith('.jar') }
-    if (!cachedJar) {
-        logger.lifecycle('[Pulkan] Fetching VulkanMod from Modrinth for compile-time mixin validation...')
-        try {
-            def json = new URL('https://api.modrinth.com/v2/project/vulkanmod/version').getText(
-                connectTimeout: 15000, readTimeout: 30000,
-                requestProperties: ['User-Agent': 'Pulkan-build/1.0 (github.com/MaxJubayerYT/Pulkan)']
-            )
-            def urlMatch = (json =~ /"url"\s*:\s*"(https:[^"]+\.jar)"/)
-            if (urlMatch) {
-                def jarUrl  = urlMatch[0][1]
-                def jarName = URLDecoder.decode(jarUrl.tokenize('/').last(), 'UTF-8')
-                cachedJar = new File(vulkanCacheDir, jarName)
-                logger.lifecycle("[Pulkan] Downloading: ${jarName}")
-                new URL(jarUrl).withInputStream { is -> cachedJar.bytes = is.bytes }
-                logger.lifecycle('[Pulkan] VulkanMod compile jar ready.')
-            }
-        } catch (Exception e) {
-            logger.warn("[Pulkan] Could not download VulkanMod: ${e.message}")
-        }
-    } else {
-        logger.lifecycle("[Pulkan] Using cached VulkanMod: ${cachedJar.name}")
-    }
-    if (cachedJar?.exists()) compileOnly files(cachedJar)
-
-    lwjglModules.each { module ->
-        modImplementation "org.lwjgl:${module}:${lwjglVersion}"
-        lwjglApiJars "org.lwjgl:${module}:${lwjglVersion}"
-        lwjglNatives.each { classifier ->
-            if (module != 'lwjgl-vulkan') {
-                runtimeOnly "org.lwjgl:${module}:${lwjglVersion}:${classifier}"
-                lwjglNativeJars "org.lwjgl:${module}:${lwjglVersion}:${classifier}"
-            }
-        }
-    }
+    // VulkanMod is REQUIRED — users must install it from Modrinth
+    // Compile-only for mixin validation. Mixins will target VulkanMod classes at runtime.
+    modCompileOnly "maven.modrinth:vulkanmod:latest.release"
 }
 
-// ── LWJGL native tasks ─────────────────────────────────────────────────────
-tasks.register('downloadAndroidNatives', Copy) {
-    description = 'Resolves LWJGL native jars into build/android-natives.'
-    from configurations.lwjglNativeJars
-    into layout.buildDirectory.dir('android-natives')
-}
-
-tasks.register('extractNativeSos') {
-    description = 'Extracts .so files into build/generated-resources/linux/{arch}/org/lwjgl/{module}.'
-    dependsOn tasks.named('downloadAndroidNatives')
-    outputs.dir nativeExtractOutDir
-
-    doLast {
-        def outDir = nativeExtractOutDir.get().asFile
-        outDir.mkdirs()
-        configurations.lwjglNativeJars.resolvedConfiguration.resolvedArtifacts.each { artifact ->
-            String arch = nativeArchMap[artifact.classifier]
-            if (arch == null) return
-            String mod = artifact.name == 'lwjgl' ? '' : artifact.name.replaceFirst('^lwjgl-', '')
-            String modPath = mod.isEmpty() ? '' : "/${mod}"
-            copy {
-                from zipTree(artifact.file)
-                include '**/*.so'
-                eachFile { f -> f.path = "${arch}/org/lwjgl${modPath}/${f.name}" }
-                includeEmptyDirs = false
-                into outDir
-            }
-        }
-    }
-}
-
-tasks.register('bundleNestedJars', Copy) {
-    description = 'Copies LWJGL API jars into build/generated-resources/META-INF/jars.'
-    from configurations.lwjglApiJars
-    into nestedJarOutDir
-}
-
-tasks.register('bundleAndroidLibs', Copy) {
-    description = 'Copies LWJGL native jars into build/generated-resources/META-INF/jars.'
-    from configurations.lwjglNativeJars
-    into nestedJarOutDir
-}
-
-// Add generated-resources as a resource directory so Loom picks it up
-sourceSets {
-    main {
-        resources {
-            srcDir generatedResources
-        }
-    }
-}
-
-// ── Hook everything into the build lifecycle ───────────────────────────────
-tasks.withType(Jar).configureEach {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependsOn tasks.named('extractNativeSos')
-    dependsOn tasks.named('bundleNestedJars')
-    dependsOn tasks.named('bundleAndroidLibs')
-}
-
-// Disable remapJar — this mod uses remap=false on all mixins and references no
-// obfuscated Minecraft internals, so Tiny Remapper has nothing to do and chokes
-// on the binary .so files inside the jar.
-tasks.named('remapJar') {
-    enabled = false
-}
-
-// Make the plain jar the primary build artifact instead
-configurations.archives.artifacts.clear()
-artifacts {
-    archives tasks.named('jar')
-}
-
-processResources {
-    inputs.property 'version', project.version
-    filesMatching('fabric.mod.json') { expand version: project.version }
-    dependsOn tasks.named('downloadAndroidNatives')
-    dependsOn tasks.named('extractNativeSos')
-    dependsOn tasks.named('bundleNestedJars')
-    dependsOn tasks.named('bundleAndroidLibs')
-}
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -183,4 +35,9 @@ java {
 
 tasks.withType(JavaCompile).configureEach {
     options.release = 21
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
 }
