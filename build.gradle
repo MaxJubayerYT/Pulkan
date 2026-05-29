@@ -13,7 +13,6 @@ base {
 repositories {
     mavenCentral()
     maven { url = 'https://maven.fabricmc.net/' }
-    maven { url = 'https://api.modrinth.com/maven' }
 }
 
 dependencies {
@@ -21,9 +20,8 @@ dependencies {
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    // VulkanMod is REQUIRED — users must install it from Modrinth
-    // Compile-only for mixin validation. Mixins will target VulkanMod classes at runtime.
-    modCompileOnly "maven.modrinth:vulkanmod:latest.release"
+    // VulkanMod is REQUIRED at runtime but not needed for compilation
+    // Mixins are remap=false and don't require VulkanMod classes during build
 }
 
 
